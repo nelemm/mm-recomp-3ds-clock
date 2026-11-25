@@ -12,7 +12,7 @@ A [Zelda 64: Recompiled](https://github.com/Zelda64Recomp/Zelda64Recomp) mod for
 
 - **Three-day bar** at the bottom of the screen, with the current day highlighted and the other days dimmed.
 - **Cursor** that moves along the bar from 6:00 on the first day to 6:00 after the final day.
-- **Time bubble** above the cursor, with the sun (6:00–18:00) or the moon and the time in 12-hour format. The bubble gently pulses once per in-game minute, so it follows the speed of time.
+- **Time bubble** above the cursor, with the sun (6:00–18:00) or the moon and the time in 12-hour format. The bubble gently pulses (about every 2.3 seconds).
 - **Slowed time** (Inverted Song of Time): gold outline, cyan digits and the slowed-time arrow, as on 3DS.
 - **Final hours**: the moon's face and an `HH:MM:SS` countdown (real in-game seconds) replace the bubble.
 - Same visibility rules as the original clock (hidden during dialogue, pause, stopped time, after day 3) and same HUD fades.
@@ -77,7 +77,7 @@ The generated textures are derived from Nintendo's artwork and Henriko Magnifico
 
 - **Barre des trois jours** en bas de l'écran : le jour en cours en pleine couleur, les autres assombris.
 - **Curseur** qui avance de 6:00 le premier jour jusqu'à 6:00 après le dernier jour.
-- **Bulle de l'heure** au-dessus du curseur : soleil (6:00–18:00) ou lune, heure au format 12 h. La bulle pulse doucement une fois par minute de jeu, elle suit donc la vitesse du temps.
+- **Bulle de l'heure** au-dessus du curseur : soleil (6:00–18:00) ou lune, heure au format 12 h. La bulle pulse doucement (environ toutes les 2,3 secondes).
 - **Temps ralenti** (Chant du Temps inversé) : contour doré, chiffres cyan et flèche, comme sur 3DS.
 - **Dernières heures** : visage de la lune et compte à rebours `HH:MM:SS` (vraies secondes de jeu) à la place de la bulle.
 - Mêmes règles d'affichage que l'horloge d'origine (cachée pendant les dialogues, la pause, le temps arrêté, après le jour 3) et mêmes fondus du HUD.

@@ -58,8 +58,10 @@
 
 #define TIME_PER_DAY 0x10000
 
-// Pulsation de la bulle : un cycle complet (transparent puis opaque) par minute de jeu.
-// Calée sur l'heure du jeu, elle ralentit en temps ralenti et suit les mods de vitesse du temps.
+// Pulsation de la bulle : un cycle complet (transparent puis opaque) en durée réelle fixe, quelle
+// que soit la vitesse du temps. 2,28 s = une minute de jeu en temps ralenti
+// (0x10000 / 1440 unités à 1 unité par image de jeu, 20 images/s).
+#define PULSE_PERIOD_SECONDS 2.28f
 #define PULSE_MIN_OPACITY 0.45f
 
 typedef enum { DIGITS_NORMAL, DIGITS_SLOW, DIGITS_FINAL, DIGITS_SETS } DigitSet;
@@ -575,11 +577,18 @@ static void hide_ui(void) {
     }
 }
 
-// Onde triangulaire sur la minute de jeu en cours : 1 -> PULSE_MIN_OPACITY -> 1.
+// Onde triangulaire en temps réel : 1 -> PULSE_MIN_OPACITY -> 1 toutes les PULSE_PERIOD_SECONDS.
 static f32 bubble_pulse(PlayState* play) {
-    // Position dans la minute : (heure x 1440) modulo une journée (0x10000 unités).
-    u32 inMinute = ((u32)(u16)CURRENT_TIME * (24u * 60u)) % TIME_PER_DAY;
-    f32 phase = (f32)inMinute / (f32)TIME_PER_DAY;                       // 0..1
+    // Le jeu tourne à 60 / R_UPDATE_RATE images par seconde (20 en temps normal).
+    s32 updateRate = R_UPDATE_RATE;
+    if (updateRate <= 0) {
+        updateRate = 3;
+    }
+    u32 period = (u32)(PULSE_PERIOD_SECONDS * 60.0f / (f32)updateRate); // en images de jeu
+    if (period < 2) {
+        period = 2;
+    }
+    f32 phase = (f32)(play->gameplayFrames % period) / (f32)period;     // 0..1
     f32 tri = (phase < 0.5f) ? (phase * 2.0f) : (2.0f - phase * 2.0f);    // 0 -> 1 -> 0
     return 1.0f - tri * (1.0f - PULSE_MIN_OPACITY);
 }
