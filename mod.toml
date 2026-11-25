@@ -1,0 +1,29 @@
+[manifest]
+id = "nelem_mm_clock_3ds"
+version = "1.0.3"
+display_name = "3DS Clock"
+description = """
+Remplace l'horloge N64 par l'horloge de Majora's Mask 3D : une barre des trois jours en bas de l'écran,
+un curseur qui avance avec le temps et une bulle qui affiche l'heure avec le soleil ou la lune.
+
+Temps ralenti (Chant du Temps inversé) : contour doré, chiffres cyan et flèche, comme sur 3DS.
+Six dernières heures : visage de la lune et compte à rebours HH:MM:SS.
+
+Pour retrouver l'horloge d'origine, désactive simplement ce mod."""
+short_description = "L'horloge de Majora's Mask 3D en bas de l'écran."
+authors = [ "Nelem" ]
+game_id = "mm"
+minimum_recomp_version = "1.2.2"
+dependencies = [
+]
+optional_dependencies = [
+]
+native_libraries = [
+]
+
+[inputs]
+elf_path = "build/mod.elf"
+mod_filename = "nelem_mm_clock_3ds"
+func_reference_syms_file = "Zelda64RecompSyms/mm.us.rev1.syms.toml"
+data_reference_syms_files = [ "Zelda64RecompSyms/mm.us.rev1.datasyms.toml", "Zelda64RecompSyms/mm.us.rev1.datasyms_static.toml" ]
+additional_files = [ ]

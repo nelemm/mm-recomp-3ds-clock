@@ -1,0 +1,17 @@
+*.d
+*.o
+*.elf
+*.bin
+*.exe
+*.dll
+*.lib
+*.pdb
+*.exp
+./funcs.h
+patches.map
+build/
+.vscode/settings.json
+
+# Generated from your own MM3D texture pack (not redistributable)
+assets/
+src/assets.h
