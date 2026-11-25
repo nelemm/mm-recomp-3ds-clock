@@ -19,24 +19,23 @@ A [Zelda 64: Recompiled](https://github.com/Zelda64Recomp/Zelda64Recomp) mod for
 
 To get the original clock back, disable the mod.
 
-### Textures (not included)
+### Textures (optional, not included)
 
-The clock pieces come from the *Majora's Mask 3D* interface, upscaled by Henriko Magnifico's **MM3D 4K** texture pack. Those images are not redistributable, so **this repository contains no textures**: you generate them from your own copy of the pack.
+The mod builds and works **without any texture**: the clock is then drawn with plain shapes and text (coloured day bars, cursor, bubble, sun/moon dots, coloured digits).
 
-You need the pack's UI atlas:
+For the real 3DS look, the pieces are cut from the *Majora's Mask 3D* interface as upscaled by Henriko Magnifico's **MM3D 4K** texture pack. Those images are not redistributable, so you generate them from your own copy of the pack. Only **one file** of the pack is used (about 2 MB), and only at build time: the pieces are embedded in the `.nrm`, so the pack is not needed to play.
 
-```
-<pack>/user/load/textures/0004000000125500/UI/tex1_512x256_45D746278BB3DA8A_13_mip0.png
-```
+1. Copy the pack's UI atlas into this repository as `source/ui_atlas.png` (ignored by git):
+   ```
+   <pack>/user/load/textures/0004000000125500/UI/tex1_512x256_45D746278BB3DA8A_13_mip0.png
+   ```
+2. Generate the pieces (Python 3 and [Pillow](https://pypi.org/project/pillow/) required):
+   ```bash
+   pip install pillow
+   python tools/gen_assets.py
+   ```
 
-Then run (Python 3 and [Pillow](https://pypi.org/project/pillow/) required):
-
-```bash
-pip install pillow
-python tools/gen_assets.py "<path to tex1_512x256_45D746278BB3DA8A_13_mip0.png>" .
-```
-
-This writes `assets/*.rgba` (raw RGBA32 pieces at half the pack's resolution), `assets/preview.png` (a contact sheet to check the result) and `src/assets.h`.
+This writes `assets/*.rgba` (raw RGBA32 pieces at half the pack's resolution), `assets/preview.png` (a contact sheet) and `src/assets.h`. When `src/assets.h` exists, the build uses the textures automatically.
 
 ### Building
 
@@ -45,7 +44,7 @@ Requirements: `make`, a MIPS-capable `clang` and `ld.lld`, and `RecompModTool` f
 ```bash
 git clone --recurse-submodules <this repository>
 cd mm-recomp-3ds-clock
-python tools/gen_assets.py "<UI atlas>" .
+python tools/gen_assets.py   # optional, see Textures
 make
 RecompModTool mod.toml build
 ```
@@ -61,7 +60,8 @@ Copy `build/nelem_mm_clock_3ds.nrm` into your mods folder (`%LOCALAPPDATA%\Zelda
 ### How it works
 
 - `Interface_DrawClock` keeps the original visibility conditions and HUD alpha, but updates a `recompui` overlay instead of drawing the N64 clock.
-- Textures are created once with `recompui_create_texture_rgba32` from the embedded RGBA32 data; the overlay is only updated when a value changes.
+- With textures, they are created once with `recompui_create_texture_rgba32` from the embedded RGBA32 data. Without them (`__has_include("assets.h")` fails), the same layout is built from `recompui` boxes and labels.
+- The overlay is only updated when a value changes.
 - `Interface_Draw` and `Play_Destroy` hooks hide the overlay whenever the clock isn't drawn (pause, menus, title screen).
 
 ### License
@@ -84,9 +84,17 @@ The generated textures are derived from Nintendo's artwork and Henriko Magnifico
 
 Pour retrouver l'horloge d'origine, désactive le mod.
 
-### Textures (non incluses)
+### Textures (facultatives, non incluses)
 
-Les pièces de l'horloge viennent de l'interface de *Majora's Mask 3D*, en version haute résolution du pack **MM3D 4K** de Henriko Magnifico. Ces images ne peuvent pas être redistribuées : **ce dépôt ne contient aucune texture**, tu les génères depuis ta propre copie du pack, avec la commande `gen_assets.py` décrite plus haut (Python 3 et Pillow).
+Le mod se compile et fonctionne **sans aucune texture** : l'horloge est alors dessinée avec des formes et du texte simples.
+
+Pour le vrai rendu 3DS, les pièces viennent de l'interface de *Majora's Mask 3D* en haute résolution (pack **MM3D 4K** de Henriko Magnifico), qui ne peut pas être redistribué : tu les génères depuis ta propre copie. **Un seul fichier** du pack sert (environ 2 Mo), et seulement à la compilation : les pièces sont intégrées au `.nrm`, le pack n'est pas nécessaire pour jouer.
+
+1. Copie l'atlas UI du pack dans ce dépôt sous le nom `source/ui_atlas.png` (ignoré par git) :
+   `<pack>/user/load/textures/0004000000125500/UI/tex1_512x256_45D746278BB3DA8A_13_mip0.png`
+2. Lance `python tools/gen_assets.py` (Python 3 et Pillow).
+
+Si `src/assets.h` existe, la compilation utilise automatiquement les textures.
 
 ### Compilation
 

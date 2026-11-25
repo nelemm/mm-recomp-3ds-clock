@@ -1,4 +1,6 @@
-"""Découpe les pièces de l'horloge 3DS dans l'atlas UI du pack MM3D 4K et produit :
+"""Usage : python tools/gen_assets.py [chemin/vers/atlas.png]
+
+Découpe les pièces de l'horloge 3DS dans l'atlas UI du pack MM3D 4K et produit :
 - assets/*.rgba : pixels bruts RGBA32 (R,G,B,A octet par octet) pour recompui_create_texture_rgba32
 - assets/preview.png : planche de contrôle
 - src/assets.h : déclarations INCBIN + tailles
@@ -7,8 +9,13 @@ import sys, pathlib
 from PIL import Image, ImageOps, ImageFilter, ImageEnhance
 
 Image.MAX_IMAGE_PIXELS = None
-ATLAS = sys.argv[1]
-ROOT = pathlib.Path(sys.argv[2])
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+# Atlas UI du pack MM3D 4K : par défaut source/ui_atlas.png (ignoré par git), ou chemin en argument.
+ATLAS = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "source" / "ui_atlas.png"
+if not ATLAS.is_file():
+    sys.exit(f"Atlas introuvable : {ATLAS}. "
+             "Copie tex1_512x256_45D746278BB3DA8A_13_mip0.png (dossier UI du pack MM3D 4K) "
+             "dans source/ui_atlas.png, ou passe son chemin en argument.")
 OUT = ROOT / "assets"
 OUT.mkdir(parents=True, exist_ok=True)
 SCALE = 0.5  # demi-résolution du pack 4K

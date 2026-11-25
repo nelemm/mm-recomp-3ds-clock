@@ -10,7 +10,17 @@
 #include "recomputils.h"
 #include "recompconfig.h"
 #include "recompui.h"
+// Les textures sont générées depuis le pack MM3D 4K (tools/gen_assets.py). Sans elles, le mod
+// se compile quand même et dessine l'horloge avec des formes et du texte de l'interface.
+#if defined(__has_include)
+#if __has_include("assets.h")
 #include "assets.h"
+#define CLOCK3DS_TEXTURES 1
+#endif
+#endif
+#ifndef CLOCK3DS_TEXTURES
+#define CLOCK3DS_TEXTURES 0
+#endif
 
 
 // ---------------------------------------------------------------------------------------------
@@ -68,12 +78,6 @@ static RecompuiResource sArrow;
 static RecompuiResource sFinalGroup;
 static RecompuiResource sFinalDigits[FINAL_HOURS_DIGITS];
 
-static RecompuiTextureHandle sTexSeg[3], sTexSegDim[3];
-static RecompuiTextureHandle sTexDigits[DIGITS_SETS][11]; // 0-9, 10 = ':'
-static f32 sDigitAspect[11];
-static RecompuiTextureHandle sTexSun, sTexMoon, sTexMoonFace, sTexCursor, sTexArrow;
-static RecompuiTextureHandle sTexSwirlL, sTexSwirlR, sTexOrn;
-
 static bool sVisible = false;
 static bool sDrawnThisFrame = false;
 
@@ -89,6 +93,24 @@ static const RecompuiColor sColorClear = { 0, 0, 0, 0 };
 static const RecompuiColor sColorWhite = { 255, 255, 255, 255 };
 static const RecompuiColor sColorBubble = { 8, 8, 10, 225 };
 static const RecompuiColor sColorGold = { 222, 182, 60, 255 };
+
+static RecompuiResource place_box(RecompuiResource parent, f32 x, f32 y, f32 w, f32 h, const RecompuiColor* bg) {
+    RecompuiResource box = recompui_create_element(sContext, parent);
+    recompui_set_position(box, POSITION_ABSOLUTE);
+    recompui_set_left(box, x, UNIT_DP);
+    recompui_set_top(box, y, UNIT_DP);
+    recompui_set_width(box, w, UNIT_DP);
+    recompui_set_height(box, h, UNIT_DP);
+    recompui_set_background_color(box, bg);
+    return box;
+}
+
+#if CLOCK3DS_TEXTURES
+static RecompuiTextureHandle sTexSeg[3], sTexSegDim[3];
+static RecompuiTextureHandle sTexDigits[DIGITS_SETS][11]; // 0-9, 10 = ':'
+static f32 sDigitAspect[11];
+static RecompuiTextureHandle sTexSun, sTexMoon, sTexMoonFace, sTexCursor, sTexArrow;
+static RecompuiTextureHandle sTexSwirlL, sTexSwirlR, sTexOrn;
 
 #define TEX(name) recompui_create_texture_rgba32(tex_##name, TEX_##name##_W, TEX_##name##_H)
 
@@ -149,17 +171,6 @@ static RecompuiResource place_image(RecompuiResource parent, RecompuiTextureHand
     return img;
 }
 
-static RecompuiResource place_box(RecompuiResource parent, f32 x, f32 y, f32 w, f32 h, const RecompuiColor* bg) {
-    RecompuiResource box = recompui_create_element(sContext, parent);
-    recompui_set_position(box, POSITION_ABSOLUTE);
-    recompui_set_left(box, x, UNIT_DP);
-    recompui_set_top(box, y, UNIT_DP);
-    recompui_set_width(box, w, UNIT_DP);
-    recompui_set_height(box, h, UNIT_DP);
-    recompui_set_background_color(box, bg);
-    return box;
-}
-
 static RecompuiResource flex_digit(RecompuiResource parent, f32 height) {
     RecompuiResource img = recompui_create_imageview(sContext, parent, sTexDigits[DIGITS_NORMAL][0]);
     recompui_set_height(img, height, UNIT_DP);
@@ -167,8 +178,195 @@ static RecompuiResource flex_digit(RecompuiResource parent, f32 height) {
     return img;
 }
 
-static void create_ui(void) {
+// Affiche un chiffre (0-9, 10 = ':', -1 = caché) dans un emplacement.
+static void set_digit(RecompuiResource slot, s32 value, DigitSet set, f32 height) {
+    if (value < 0) {
+        recompui_set_display(slot, DISPLAY_NONE);
+        return;
+    }
+    recompui_set_display(slot, DISPLAY_BLOCK);
+    recompui_set_imageview_texture(slot, sTexDigits[set][value]);
+    recompui_set_width(slot, height * sDigitAspect[value], UNIT_DP);
+}
+
+
+static void backend_init(void) {
     load_textures();
+}
+
+static void backend_create_decor(void) {
+    // Arabesques de chaque côté et ornement central
+    f32 swirlH = SWIRL_W * TEX_SWIRL_L_H / TEX_SWIRL_L_W;
+    place_image(sRoot, sTexSwirlL, BAR_X - SWIRL_W * 0.62f, BAR_Y + BAR_H - swirlH + 4.0f, SWIRL_W, swirlH);
+    place_image(sRoot, sTexSwirlR, BAR_X + BAR_W - SWIRL_W * 0.38f, BAR_Y + BAR_H - swirlH + 4.0f, SWIRL_W, swirlH);
+    f32 ornH = ORN_W * TEX_ORN_H / TEX_ORN_W;
+    place_image(sRoot, sTexOrn, (ROOT_W - ORN_W) / 2.0f, BAR_Y - ornH + 3.0f, ORN_W, ornH);
+}
+
+static RecompuiResource backend_create_segment(s32 i) {
+    return place_image(sRoot, sTexSegDim[i], BAR_X + SEG_W * i, BAR_Y, SEG_W, BAR_H);
+}
+
+static void backend_set_segment(s32 i, bool current) {
+    recompui_set_imageview_texture(sSegments[i], current ? sTexSeg[i] : sTexSegDim[i]);
+}
+
+static RecompuiResource backend_create_cursor(void) {
+    return place_image(sRoot, sTexCursor, BAR_X - CURSOR_W / 2.0f, BAR_Y - CURSOR_H - 1.0f, CURSOR_W, CURSOR_H);
+}
+
+static void backend_create_bubble_content(void) {
+    sBubbleIcon = recompui_create_imageview(sContext, sBubble, sTexSun);
+    recompui_set_width(sBubbleIcon, BUBBLE_ICON, UNIT_DP);
+    recompui_set_height(sBubbleIcon, BUBBLE_ICON, UNIT_DP);
+    recompui_set_margin_right(sBubbleIcon, 8.0f, UNIT_DP);
+    for (s32 i = 0; i < BUBBLE_DIGITS; i++) {
+        sBubbleDigits[i] = flex_digit(sBubble, BUBBLE_DIGIT_H);
+    }
+}
+
+static RecompuiResource backend_create_arrow(void) {
+    f32 arrowW = ARROW_H * TEX_ARROW_W / TEX_ARROW_H;
+    return place_image(sRoot, sTexArrow, 0.0f, BUBBLE_Y + (BUBBLE_H - ARROW_H) / 2.0f, arrowW, ARROW_H);
+}
+
+static void backend_create_final_content(void) {
+    RecompuiResource face = recompui_create_imageview(sContext, sFinalGroup, sTexMoonFace);
+    recompui_set_width(face, FINAL_FACE, UNIT_DP);
+    recompui_set_height(face, FINAL_FACE, UNIT_DP);
+    RecompuiResource row = recompui_create_element(sContext, sFinalGroup);
+    recompui_set_display(row, DISPLAY_FLEX);
+    recompui_set_flex_direction(row, FLEX_DIRECTION_ROW);
+    recompui_set_align_items(row, ALIGN_ITEMS_CENTER);
+    for (s32 i = 0; i < FINAL_HOURS_DIGITS; i++) {
+        sFinalDigits[i] = flex_digit(row, FINAL_DIGIT_H);
+    }
+}
+
+static void backend_set_bubble(const s32* digits, DigitSet set, bool isDay) {
+    for (s32 i = 0; i < BUBBLE_DIGITS; i++) {
+        set_digit(sBubbleDigits[i], digits[i], set, BUBBLE_DIGIT_H);
+    }
+    recompui_set_imageview_texture(sBubbleIcon, isDay ? sTexSun : sTexMoon);
+}
+
+static void backend_set_final(const s32* digits) {
+    for (s32 i = 0; i < FINAL_HOURS_DIGITS; i++) {
+        set_digit(sFinalDigits[i], digits[i], DIGITS_FINAL, FINAL_DIGIT_H);
+    }
+}
+
+#else
+
+// Version sans textures : formes et texte de l'interface du jeu.
+static RecompuiResource sBubbleText;
+static RecompuiResource sFinalText;
+
+static const RecompuiColor sDayColors[3] = { { 70, 110, 180, 255 }, { 220, 200, 45, 255 }, { 210, 75, 135, 255 } };
+static const RecompuiColor sDigitColors[DIGITS_SETS] = {
+    { 240, 228, 190, 255 }, // crème (normal)
+    { 90, 225, 255, 255 },  // cyan (temps ralenti)
+    { 255, 150, 20, 255 },  // orange (compte à rebours)
+};
+static const RecompuiColor sColorCursor = { 220, 30, 30, 255 };
+static const RecompuiColor sColorSun = { 250, 120, 20, 255 };
+static const RecompuiColor sColorMoon = { 245, 225, 90, 255 };
+static const RecompuiColor sColorMoonFace = { 235, 110, 25, 255 };
+
+static RecompuiColor dim_color(const RecompuiColor* c) {
+    RecompuiColor d = { (u8)(c->r * 45 / 100), (u8)(c->g * 45 / 100), (u8)(c->b * 45 / 100), c->a };
+    return d;
+}
+
+// Convertit les chiffres (0-9, 10 = ':', -1 = rien) en texte ; `out` doit contenir count + 1 caractères.
+static void digits_to_text(const s32* digits, s32 count, char* out) {
+    s32 n = 0;
+    for (s32 i = 0; i < count; i++) {
+        if (digits[i] >= 0 && digits[i] <= 9) {
+            out[n++] = (char)('0' + digits[i]);
+        } else if (digits[i] == 10) {
+            out[n++] = ':';
+        }
+    }
+    out[n] = '\0';
+}
+
+static RecompuiResource make_label(RecompuiResource parent, f32 size, const RecompuiColor* color) {
+    RecompuiResource label = recompui_create_label(sContext, parent, "", LABELSTYLE_NORMAL);
+    recompui_set_font_size(label, size, UNIT_DP);
+    recompui_set_font_weight(label, 700);
+    recompui_set_color(label, color);
+    return label;
+}
+
+static void backend_init(void) {
+}
+
+static void backend_create_decor(void) {
+}
+
+static RecompuiResource backend_create_segment(s32 i) {
+    RecompuiColor dim = dim_color(&sDayColors[i]);
+    return place_box(sRoot, BAR_X + SEG_W * i, BAR_Y, SEG_W, BAR_H, &dim);
+}
+
+static void backend_set_segment(s32 i, bool current) {
+    RecompuiColor color = current ? sDayColors[i] : dim_color(&sDayColors[i]);
+    recompui_set_background_color(sSegments[i], &color);
+}
+
+static RecompuiResource backend_create_cursor(void) {
+    RecompuiResource cursor =
+        place_box(sRoot, BAR_X - CURSOR_W / 2.0f, BAR_Y - CURSOR_H - 1.0f, CURSOR_W, CURSOR_H, &sColorCursor);
+    recompui_set_border_radius(cursor, 3.0f, UNIT_DP);
+    return cursor;
+}
+
+static void backend_create_bubble_content(void) {
+    sBubbleIcon = recompui_create_element(sContext, sBubble);
+    recompui_set_width(sBubbleIcon, BUBBLE_ICON * 0.7f, UNIT_DP);
+    recompui_set_height(sBubbleIcon, BUBBLE_ICON * 0.7f, UNIT_DP);
+    recompui_set_border_radius(sBubbleIcon, BUBBLE_ICON, UNIT_DP);
+    recompui_set_background_color(sBubbleIcon, &sColorSun);
+    recompui_set_margin_right(sBubbleIcon, 10.0f, UNIT_DP);
+    sBubbleText = make_label(sBubble, BUBBLE_DIGIT_H, &sDigitColors[DIGITS_NORMAL]);
+}
+
+static RecompuiResource backend_create_arrow(void) {
+    RecompuiResource arrow = make_label(sRoot, ARROW_H, &sColorWhite);
+    recompui_set_position(arrow, POSITION_ABSOLUTE);
+    recompui_set_top(arrow, BUBBLE_Y + (BUBBLE_H - ARROW_H) / 2.0f - 4.0f, UNIT_DP);
+    recompui_set_text(arrow, ">>");
+    return arrow;
+}
+
+static void backend_create_final_content(void) {
+    RecompuiResource face = recompui_create_element(sContext, sFinalGroup);
+    recompui_set_width(face, FINAL_FACE * 0.8f, UNIT_DP);
+    recompui_set_height(face, FINAL_FACE * 0.8f, UNIT_DP);
+    recompui_set_border_radius(face, FINAL_FACE, UNIT_DP);
+    recompui_set_background_color(face, &sColorMoonFace);
+    sFinalText = make_label(sFinalGroup, FINAL_DIGIT_H, &sDigitColors[DIGITS_FINAL]);
+}
+
+static void backend_set_bubble(const s32* digits, DigitSet set, bool isDay) {
+    char text[BUBBLE_DIGITS + 1];
+    digits_to_text(digits, BUBBLE_DIGITS, text);
+    recompui_set_text(sBubbleText, text);
+    recompui_set_color(sBubbleText, &sDigitColors[set]);
+    recompui_set_background_color(sBubbleIcon, isDay ? &sColorSun : &sColorMoon);
+}
+
+static void backend_set_final(const s32* digits) {
+    char text[FINAL_HOURS_DIGITS + 1];
+    digits_to_text(digits, FINAL_HOURS_DIGITS, text);
+    recompui_set_text(sFinalText, text);
+}
+
+#endif
+
+static void create_ui(void) {
+    backend_init();
 
     sContext = recompui_create_context();
     recompui_set_context_captures_input(sContext, 0);
@@ -184,16 +382,11 @@ static void create_ui(void) {
     recompui_set_width(sRoot, ROOT_W, UNIT_DP);
     recompui_set_height(sRoot, ROOT_H, UNIT_DP);
 
-    // Arabesques de chaque côté et ornement central
-    f32 swirlH = SWIRL_W * TEX_SWIRL_L_H / TEX_SWIRL_L_W;
-    place_image(sRoot, sTexSwirlL, BAR_X - SWIRL_W * 0.62f, BAR_Y + BAR_H - swirlH + 4.0f, SWIRL_W, swirlH);
-    place_image(sRoot, sTexSwirlR, BAR_X + BAR_W - SWIRL_W * 0.38f, BAR_Y + BAR_H - swirlH + 4.0f, SWIRL_W, swirlH);
-    f32 ornH = ORN_W * TEX_ORN_H / TEX_ORN_W;
-    place_image(sRoot, sTexOrn, (ROOT_W - ORN_W) / 2.0f, BAR_Y - ornH + 3.0f, ORN_W, ornH);
+    backend_create_decor();
 
     // Les 3 jours
     for (s32 i = 0; i < 3; i++) {
-        sSegments[i] = place_image(sRoot, sTexSegDim[i], BAR_X + SEG_W * i, BAR_Y, SEG_W, BAR_H);
+        sSegments[i] = backend_create_segment(i);
     }
 
     // Repères : séparations entre les jours et petits traits toutes les 6 h
@@ -213,7 +406,7 @@ static void create_ui(void) {
     recompui_set_border_radius(frame, 2.0f, UNIT_DP);
 
     // Curseur
-    sCursor = place_image(sRoot, sTexCursor, BAR_X - CURSOR_W / 2.0f, BAR_Y - CURSOR_H - 1.0f, CURSOR_W, CURSOR_H);
+    sCursor = backend_create_cursor();
 
     // Bulle : icône + heure
     sBubble = place_box(sRoot, 0.0f, BUBBLE_Y, BUBBLE_W, BUBBLE_H, &sColorBubble);
@@ -225,17 +418,10 @@ static void create_ui(void) {
     recompui_set_align_items(sBubble, ALIGN_ITEMS_CENTER);
     recompui_set_justify_content(sBubble, JUSTIFY_CONTENT_CENTER);
     recompui_set_gap(sBubble, 1.0f, UNIT_DP);
-    sBubbleIcon = recompui_create_imageview(sContext, sBubble, sTexSun);
-    recompui_set_width(sBubbleIcon, BUBBLE_ICON, UNIT_DP);
-    recompui_set_height(sBubbleIcon, BUBBLE_ICON, UNIT_DP);
-    recompui_set_margin_right(sBubbleIcon, 8.0f, UNIT_DP);
-    for (s32 i = 0; i < BUBBLE_DIGITS; i++) {
-        sBubbleDigits[i] = flex_digit(sBubble, BUBBLE_DIGIT_H);
-    }
+    backend_create_bubble_content();
 
     // Flèche du temps ralenti, accolée à droite de la bulle
-    f32 arrowW = ARROW_H * TEX_ARROW_W / TEX_ARROW_H;
-    sArrow = place_image(sRoot, sTexArrow, 0.0f, BUBBLE_Y + (BUBBLE_H - ARROW_H) / 2.0f, arrowW, ARROW_H);
+    sArrow = backend_create_arrow();
     recompui_set_display(sArrow, DISPLAY_NONE);
 
     // 6 dernières heures : visage de la lune + compte à rebours
@@ -247,31 +433,11 @@ static void create_ui(void) {
     recompui_set_flex_direction(sFinalGroup, FLEX_DIRECTION_COLUMN);
     recompui_set_align_items(sFinalGroup, ALIGN_ITEMS_CENTER);
     recompui_set_display(sFinalGroup, DISPLAY_NONE);
-    RecompuiResource face = recompui_create_imageview(sContext, sFinalGroup, sTexMoonFace);
-    recompui_set_width(face, FINAL_FACE, UNIT_DP);
-    recompui_set_height(face, FINAL_FACE, UNIT_DP);
-    RecompuiResource row = recompui_create_element(sContext, sFinalGroup);
-    recompui_set_display(row, DISPLAY_FLEX);
-    recompui_set_flex_direction(row, FLEX_DIRECTION_ROW);
-    recompui_set_align_items(row, ALIGN_ITEMS_CENTER);
-    for (s32 i = 0; i < FINAL_HOURS_DIGITS; i++) {
-        sFinalDigits[i] = flex_digit(row, FINAL_DIGIT_H);
-    }
+    backend_create_final_content();
 
     recompui_set_display(sRoot, DISPLAY_NONE);
     recompui_close_context(sContext);
     recompui_show_context(sContext);
-}
-
-// Affiche un chiffre (0-9, 10 = ':', -1 = caché) dans un emplacement.
-static void set_digit(RecompuiResource slot, s32 value, DigitSet set, f32 height) {
-    if (value < 0) {
-        recompui_set_display(slot, DISPLAY_NONE);
-        return;
-    }
-    recompui_set_display(slot, DISPLAY_BLOCK);
-    recompui_set_imageview_texture(slot, sTexDigits[set][value]);
-    recompui_set_width(slot, height * sDigitAspect[value], UNIT_DP);
 }
 
 typedef enum { MODE_NORMAL, MODE_SLOW, MODE_FINAL } ClockMode;
@@ -368,7 +534,7 @@ static void update_ui(f32 opacity, f32 pulse) {
     }
     if (day != sShownDay) {
         for (s32 i = 0; i < 3; i++) {
-            recompui_set_imageview_texture(sSegments[i], (i == day - 1) ? sTexSeg[i] : sTexSegDim[i]);
+            backend_set_segment(i, i == day - 1);
         }
         sShownDay = day;
     }
@@ -387,15 +553,9 @@ static void update_ui(f32 opacity, f32 pulse) {
     }
     if (digitsChanged || ((s32)mode != sShownMode)) {
         if (mode == MODE_FINAL) {
-            for (s32 i = 0; i < FINAL_HOURS_DIGITS; i++) {
-                set_digit(sFinalDigits[i], digits[i], DIGITS_FINAL, FINAL_DIGIT_H);
-            }
+            backend_set_final(digits);
         } else {
-            DigitSet set = (mode == MODE_SLOW) ? DIGITS_SLOW : DIGITS_NORMAL;
-            for (s32 i = 0; i < BUBBLE_DIGITS; i++) {
-                set_digit(sBubbleDigits[i], digits[i], set, BUBBLE_DIGIT_H);
-            }
-            recompui_set_imageview_texture(sBubbleIcon, isDay ? sTexSun : sTexMoon);
+            backend_set_bubble(digits, (mode == MODE_SLOW) ? DIGITS_SLOW : DIGITS_NORMAL, isDay);
         }
         for (s32 i = 0; i < FINAL_HOURS_DIGITS; i++) {
             sShownDigits[i] = digits[i];
