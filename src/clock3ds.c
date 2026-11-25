@@ -609,10 +609,85 @@ static f32 bubble_pulse(PlayState* play) {
 // ---------------------------------------------------------------------------------------------
 // Remplacement de l'horloge d'origine
 // ---------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------
+// Better Double SoT : empêcher de choisir une heure après minuit le jour 3
+// ---------------------------------------------------------------------------------------------
+// Le jour 3, son curseur peut passer de 23:00 à 0:00 (début des 6 dernières heures) et valider
+// ce choix fait crasher le jeu. Sans modifier ce mod, on lit l'heure qu'il propose (il appelle
+// Interface_DrawClock avec cette heure pour l'aperçu) et, quand elle atteint 23:00 le jour 3,
+// on neutralise les commandes qui avancent l'heure avant qu'il ne les lise.
+static u16 sPreviewTime = 0;
+static u32 sPreviewFrame = 0;
+static bool sPreviewSeen = false;
+
+static bool preview_blocks_forward(PlayState* play) {
+    if (!sPreviewSeen || (CURRENT_DAY != 3)) {
+        return false;
+    }
+    // Aperçu récent uniquement (il est redessiné à chaque image pendant le choix).
+    if ((play->gameplayFrames - sPreviewFrame) > 2) {
+        return false;
+    }
+    // 23:00 ou au-delà de minuit (0:00-6:00) : ne plus avancer.
+    return (sPreviewTime >= CLOCK_TIME(23, 0)) || (sPreviewTime < CLOCK_TIME(6, 0));
+}
+
+// Heure proposée après minuit le jour 3 (0:00-6:00) : ce choix ne doit pas pouvoir être validé.
+static bool preview_after_midnight(PlayState* play) {
+    return sPreviewSeen && (CURRENT_DAY == 3) && ((play->gameplayFrames - sPreviewFrame) <= 2) &&
+           (sPreviewTime < CLOCK_TIME(6, 0));
+}
+
+RECOMP_HOOK("Play_Update")
+void Clock3DS_LockDoubleTimeAfterMidnight(PlayState* play) {
+    if (play->msgCtx.ocarinaMode != OCARINA_MODE_PROCESS_DOUBLE_TIME) {
+        sPreviewSeen = false;
+        return;
+    }
+    if (!preview_blocks_forward(play)) {
+        return;
+    }
+    Input* input = &play->state.input[0];
+
+    // Si l'heure proposée est déjà après minuit (rejouer le chant à 23:xx propose 0:00, et le
+    // curseur ne peut pas reculer avant l'heure actuelle), la sélection est placée sur "Non" et ne
+    // peut plus remonter sur "Oui" : valider annule le chant, comme le jeu de base qui le refuse
+    // la nuit du jour 3.
+    if (preview_after_midnight(play)) {
+        play->msgCtx.choiceIndex = 1; // 0 = Oui, 1 = Non
+        if (input->cur.stick_y > 0) {
+            input->cur.stick_y = 0;
+        }
+        if (input->rel.stick_y > 0) {
+            input->rel.stick_y = 0;
+        }
+        input->cur.button &= (u16)~BTN_DUP;
+        input->press.button &= (u16)~BTN_DUP;
+        input->rel.button &= (u16)~BTN_DUP;
+    }
+    const u16 forwardButtons = BTN_DRIGHT | BTN_Z | BTN_R;
+    if (input->cur.stick_x > 0) {
+        input->cur.stick_x = 0;
+    }
+    if (input->rel.stick_x > 0) {
+        input->rel.stick_x = 0;
+    }
+    input->cur.button &= (u16)~forwardButtons;
+    input->press.button &= (u16)~forwardButtons;
+    input->rel.button &= (u16)~forwardButtons;
+}
+
 RECOMP_PATCH void Interface_DrawClock(PlayState* play) {
     static s16 sThreeDayClockAlpha = 255;
     MessageContext* msgCtx = &play->msgCtx;
     InterfaceContext* interfaceCtx = &play->interfaceCtx;
+
+    // Appel hors Interface_Draw = aperçu de Better Double SoT : on retient l'heure proposée.
+    if (!sInInterfaceDraw) {
+        sPreviewTime = CURRENT_TIME;
+        sPreviewFrame = play->gameplayFrames;
+        sPreviewSeen = true;
+    }
 
     // Mêmes conditions d'affichage que l'horloge d'origine.
     if ((R_TIME_SPEED != 0) &&

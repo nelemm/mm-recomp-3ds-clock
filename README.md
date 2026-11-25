@@ -60,6 +60,7 @@ Download `3DS_Clock-<version>.zip` from the [Releases](../../releases) page, dra
 - Replaces `Interface_DrawClock` with `RECOMP_PATCH`: not compatible with another mod that patches the same function.
 - Works with the Archipelago randomizer ([MMRecompRando](https://github.com/RecompRando/MMRecompRando)) and with time-speed mods: everything is computed from the in-game time.
 - Works with *Better Double SoT*: its hour-selection preview is shown on the bar (choosing 6:00 points to the next day's dawn).
+- With *Better Double SoT* on day 3, the hour cursor stops at 23:00, and when the proposed hour is after midnight the answer is locked on *No*: choosing an hour in the final hours crashes the game (the vanilla game refuses the Song of Double Time on the night of day 3).
 - Requires Zelda 64: Recompiled 1.2.2 or newer.
 
 ### How it works
@@ -113,6 +114,7 @@ Voir la section [Building](#building) ci-dessus.
 
 - Remplace `Interface_DrawClock` (`RECOMP_PATCH`) : incompatible avec un autre mod qui modifie la même fonction.
 - Compatible avec le randomizer Archipelago et avec les mods qui changent la vitesse du temps.
+- Avec *Better Double SoT*, le jour 3, le curseur d'heure s'arrête à 23:00, et si l'heure proposée est après minuit la réponse est bloquée sur *Non* : choisir une heure dans les dernières heures fait crasher le jeu.
 - Nécessite Zelda 64: Recompiled 1.2.2 ou plus récent.
 
 ### Licence
