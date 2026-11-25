@@ -82,6 +82,9 @@ static RecompuiResource sFinalDigits[FINAL_HOURS_DIGITS];
 
 static bool sVisible = false;
 static bool sDrawnThisFrame = false;
+// Vrai pendant Interface_Draw. Un appel à Interface_DrawClock en dehors vient d'un autre mod,
+// comme l'aperçu de l'heure choisie de Better Double SoT (Chant du double temps).
+static bool sInInterfaceDraw = false;
 
 // Dernières valeurs envoyées à l'interface, pour ne la modifier que si besoin.
 static s32 sShownDay = -1;
@@ -444,9 +447,15 @@ static void create_ui(void) {
 
 typedef enum { MODE_NORMAL, MODE_SLOW, MODE_FINAL } ClockMode;
 
-static void update_ui(f32 opacity, f32 pulse) {
+static void update_ui(f32 opacity, f32 pulse, bool preview) {
     u16 time = CURRENT_TIME;
     s32 day = CURRENT_DAY;
+    // Aperçu de Better Double SoT : il remplace l'heure par l'heure choisie sans changer le jour.
+    // Choisir 6:00 veut dire "aube du jour suivant" (sur l'horloge N64, il change seulement
+    // l'image du numéro de jour) : on avance donc le jour pour placer le curseur au bon endroit.
+    if (preview && (time == CLOCK_TIME(6, 0)) && (day < 3)) {
+        day++;
+    }
     if (day < 1) {
         day = 1;
     } else if (day > 3) {
@@ -480,6 +489,8 @@ static void update_ui(f32 opacity, f32 pulse) {
     if (mode == MODE_FINAL) {
         // Vraies secondes de jeu restantes avant la chute de la lune.
         // 86400 s / 0x10000 unités = 675 / 512 ; untilCrash <= 0x10000 en fin de cycle, donc pas de débordement.
+        // Tronquage voulu : l'heure stockée est arrondie vers le bas, donc le temps restant
+        // (fin du cycle - heure) l'est vers le haut ; tronquer les secondes compense (5 h pile -> 05:00:00).
         u32 secs = ((u32)untilCrash * 675u) / 512u;
         u32 h = secs / 3600, m = (secs / 60) % 60, s = secs % 60;
         if (h > 99) {
@@ -489,7 +500,9 @@ static void update_ui(f32 opacity, f32 pulse) {
         digits[3] = m / 10; digits[4] = m % 10; digits[5] = 10;
         digits[6] = s / 10; digits[7] = s % 10;
     } else {
-        u32 minutes = ((u32)time * (24 * 60)) / TIME_PER_DAY;
+        // Arrondi à la minute la plus proche (7:00 = 19114,67 unités, stockées 19114 : un tronquage
+        // afficherait 6:59). Modulo une journée pour 23:59,5 -> 0:00.
+        u32 minutes = (((u32)time * (24 * 60) + TIME_PER_DAY / 2) / TIME_PER_DAY) % (24 * 60);
         u32 hour24 = minutes / 60, minute = minutes % 60;
         u32 hour12 = hour24 % 12;
         if (hour12 == 0) {
@@ -616,7 +629,7 @@ RECOMP_PATCH void Interface_DrawClock(PlayState* play) {
             if (sContext == RECOMPUI_NULL_CONTEXT) {
                 create_ui();
             }
-            update_ui(sThreeDayClockAlpha / 255.0f, bubble_pulse(play));
+            update_ui(sThreeDayClockAlpha / 255.0f, bubble_pulse(play), !sInInterfaceDraw);
             sDrawnThisFrame = true;
         }
     }
@@ -627,10 +640,12 @@ RECOMP_PATCH void Interface_DrawClock(PlayState* play) {
 RECOMP_HOOK("Interface_Draw")
 void Clock3DS_OnInterfaceDraw(PlayState* play) {
     sDrawnThisFrame = false;
+    sInInterfaceDraw = true;
 }
 
 RECOMP_HOOK_RETURN("Interface_Draw")
 void Clock3DS_OnInterfaceDrawReturn(void) {
+    sInInterfaceDraw = false;
     if (!sDrawnThisFrame) {
         hide_ui();
     }

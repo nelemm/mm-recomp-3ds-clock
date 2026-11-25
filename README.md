@@ -51,10 +51,15 @@ RecompModTool mod.toml build
 
 Copy `build/nelem_mm_clock_3ds.nrm` into your mods folder (`%LOCALAPPDATA%\Zelda64Recompiled\mods` on Windows) and enable **3DS Clock** in the **Mods** menu.
 
+### Installation (prebuilt, without textures)
+
+Download `3DS_Clock-<version>.zip` from the [Releases](../../releases) page, drag and drop it onto the Zelda 64: Recompiled window, then enable **3DS Clock** in the **Mods** menu.
+
 ### Compatibility
 
 - Replaces `Interface_DrawClock` with `RECOMP_PATCH`: not compatible with another mod that patches the same function.
 - Works with the Archipelago randomizer ([MMRecompRando](https://github.com/RecompRando/MMRecompRando)) and with time-speed mods: everything is computed from the in-game time.
+- Works with *Better Double SoT*: its hour-selection preview is shown on the bar (choosing 6:00 points to the next day's dawn).
 - Requires Zelda 64: Recompiled 1.2.2 or newer.
 
 ### How it works
@@ -95,6 +100,10 @@ Pour le vrai rendu 3DS, les pièces viennent de l'interface de *Majora's Mask 3D
 2. Lance `python tools/gen_assets.py` (Python 3 et Pillow).
 
 Si `src/assets.h` existe, la compilation utilise automatiquement les textures.
+
+### Installation (version précompilée, sans textures)
+
+Télécharge `3DS_Clock-<version>.zip` dans les [Releases](../../releases), glisse-le dans la fenêtre de Zelda 64: Recompiled, puis active **3DS Clock** dans le menu **Mods**.
 
 ### Compilation
 
