@@ -1,6 +1,6 @@
 // Horloge façon Majora's Mask 3D : une barre des 3 jours en bas de l'écran, un curseur qui
 // avance avec le temps, une bulle avec le soleil/la lune et l'heure, et le compte à rebours
-// avec le visage de la lune pendant les 6 dernières heures.
+// pendant les 6 dernières heures.
 //
 // Interface_DrawClock est remplacée : on garde ses conditions d'affichage et son fondu
 // d'origine, mais au lieu de dessiner l'horloge N64 on met à jour un calque recompui.
@@ -10,17 +10,15 @@
 #include "recomputils.h"
 #include "recompconfig.h"
 #include "recompui.h"
-// Les textures sont générées depuis le pack MM3D 4K (tools/gen_assets.py). Sans elles, le mod
-// se compile quand même et dessine l'horloge avec des formes et du texte de l'interface.
-#if defined(__has_include)
-#if __has_include("assets.h")
-#include "assets.h"
-#define CLOCK3DS_TEXTURES 1
-#endif
-#endif
-#ifndef CLOCK3DS_TEXTURES
-#define CLOCK3DS_TEXTURES 0
-#endif
+// Les textures sont découpées par la bibliothèque native du mod (clock3ds_textures.dll) dans
+// l'atlas UI du pack MM3D 4K, dont le joueur donne le chemin dans les réglages du mod. Champ vide
+// ou fichier introuvable : l'horloge est dessinée avec des formes et du texte de l'interface.
+#include "tex_pieces.h"
+
+RECOMP_IMPORT(".", u32 clock3ds_tex_load(const char* path));
+RECOMP_IMPORT(".", u32 clock3ds_tex_dims(u32 piece));
+RECOMP_IMPORT(".", u32 clock3ds_tex_copy(u32 piece, void* dst, u32 dst_size));
+RECOMP_IMPORT(".", void clock3ds_tex_free(void));
 
 
 // ---------------------------------------------------------------------------------------------
@@ -47,7 +45,7 @@
 
 #define ARROW_H 20.0f
 
-#define FINAL_FACE 46.0f
+#define FINAL_TOP 46.0f // compte à rebours : même hauteur qu'avant le retrait de l'icône
 #define FINAL_DIGIT_H 36.0f
 
 #define SWIRL_W 160.0f
@@ -110,60 +108,55 @@ static RecompuiResource place_box(RecompuiResource parent, f32 x, f32 y, f32 w, 
     return box;
 }
 
-#if CLOCK3DS_TEXTURES
-static RecompuiTextureHandle sTexSeg[3], sTexSegDim[3];
-static RecompuiTextureHandle sTexDigits[DIGITS_SETS][11]; // 0-9, 10 = ':'
-static f32 sDigitAspect[11];
-static RecompuiTextureHandle sTexSun, sTexMoon, sTexMoonFace, sTexCursor, sTexArrow;
-static RecompuiTextureHandle sTexSwirlL, sTexSwirlR, sTexOrn;
+// Choisi une fois, à la création du calque : vrai si l'atlas du pack a été trouvé et découpé.
+static bool sUseTextures = false;
 
-#define TEX(name) recompui_create_texture_rgba32(tex_##name, TEX_##name##_W, TEX_##name##_H)
+// ---------------------------------------------------------------------------------------------
+// Version avec textures (atlas MM3D 4K)
+// ---------------------------------------------------------------------------------------------
+static RecompuiTextureHandle sTex[TP_COUNT];
+static u32 sTexW[TP_COUNT];
+static u32 sTexH[TP_COUNT];
 
-static void load_textures(void) {
-    sTexSeg[0] = TEX(day1);
-    sTexSeg[1] = TEX(day2);
-    sTexSeg[2] = TEX(day3);
-    sTexSegDim[0] = TEX(day1_dim);
-    sTexSegDim[1] = TEX(day2_dim);
-    sTexSegDim[2] = TEX(day3_dim);
+#define DIGIT_TEX(set, glyph) sTex[TP_DIGITS + (set) * CLOCK3DS_DIGIT_GLYPHS + (glyph)]
+#define DIGIT_ASPECT(glyph) ((f32)sTexW[TP_DIGITS + (glyph)] / (f32)sTexH[TP_DIGITS + (glyph)])
+#define TEX_ASPECT(piece) ((f32)sTexW[piece] / (f32)sTexH[piece])
 
-#define DIGIT_SET(set, prefix)                                       \
-    sTexDigits[set][0] = TEX(prefix##_0);                            \
-    sTexDigits[set][1] = TEX(prefix##_1);                            \
-    sTexDigits[set][2] = TEX(prefix##_2);                            \
-    sTexDigits[set][3] = TEX(prefix##_3);                            \
-    sTexDigits[set][4] = TEX(prefix##_4);                            \
-    sTexDigits[set][5] = TEX(prefix##_5);                            \
-    sTexDigits[set][6] = TEX(prefix##_6);                            \
-    sTexDigits[set][7] = TEX(prefix##_7);                            \
-    sTexDigits[set][8] = TEX(prefix##_8);                            \
-    sTexDigits[set][9] = TEX(prefix##_9);                            \
-    sTexDigits[set][10] = TEX(prefix##_colon);
-    DIGIT_SET(DIGITS_NORMAL, dg)
-    DIGIT_SET(DIGITS_SLOW, dc)
-    DIGIT_SET(DIGITS_FINAL, do)
-#undef DIGIT_SET
-
-    sDigitAspect[0] = (f32)TEX_DG_0_W / TEX_DG_0_H;
-    sDigitAspect[1] = (f32)TEX_DG_1_W / TEX_DG_1_H;
-    sDigitAspect[2] = (f32)TEX_DG_2_W / TEX_DG_2_H;
-    sDigitAspect[3] = (f32)TEX_DG_3_W / TEX_DG_3_H;
-    sDigitAspect[4] = (f32)TEX_DG_4_W / TEX_DG_4_H;
-    sDigitAspect[5] = (f32)TEX_DG_5_W / TEX_DG_5_H;
-    sDigitAspect[6] = (f32)TEX_DG_6_W / TEX_DG_6_H;
-    sDigitAspect[7] = (f32)TEX_DG_7_W / TEX_DG_7_H;
-    sDigitAspect[8] = (f32)TEX_DG_8_W / TEX_DG_8_H;
-    sDigitAspect[9] = (f32)TEX_DG_9_W / TEX_DG_9_H;
-    sDigitAspect[10] = (f32)TEX_DG_COLON_W / TEX_DG_COLON_H;
-
-    sTexSun = TEX(sun);
-    sTexMoon = TEX(moon);
-    sTexMoonFace = TEX(moonface);
-    sTexCursor = TEX(cursor);
-    sTexArrow = TEX(arrow);
-    sTexSwirlL = TEX(swirl_l);
-    sTexSwirlR = TEX(swirl_r);
-    sTexOrn = TEX(orn);
+// Récupère les pièces découpées par la bibliothèque native et en fait des textures.
+static bool load_textures(const char* path) {
+    u32 created = 0;
+    bool ok = (path[0] != '\0') && (clock3ds_tex_load(path) == TP_COUNT);
+    for (u32 i = 0; ok && (i < TP_COUNT); i++) {
+        u32 dims = clock3ds_tex_dims(i);
+        u32 w = dims >> 16;
+        u32 h = dims & 0xFFFF;
+        if ((w == 0) || (h == 0) || ((w * h) > CLOCK3DS_MAX_PIECE_PIXELS)) {
+            ok = false;
+            break;
+        }
+        void* pixels = recomp_alloc(w * h * 4);
+        if (pixels == NULL) {
+            ok = false;
+            break;
+        }
+        if (!clock3ds_tex_copy(i, pixels, w * h * 4)) {
+            recomp_free(pixels);
+            ok = false;
+            break;
+        }
+        sTex[i] = recompui_create_texture_rgba32(pixels, w, h); // copie les pixels
+        recomp_free(pixels);
+        sTexW[i] = w;
+        sTexH[i] = h;
+        created++;
+    }
+    if (!ok) {
+        for (u32 i = 0; i < created; i++) {
+            recompui_destroy_texture(sTex[i]);
+        }
+    }
+    clock3ds_tex_free();
+    return ok;
 }
 
 static RecompuiResource place_image(RecompuiResource parent, RecompuiTextureHandle tex, f32 x, f32 y, f32 w, f32 h) {
@@ -177,9 +170,9 @@ static RecompuiResource place_image(RecompuiResource parent, RecompuiTextureHand
 }
 
 static RecompuiResource flex_digit(RecompuiResource parent, f32 height) {
-    RecompuiResource img = recompui_create_imageview(sContext, parent, sTexDigits[DIGITS_NORMAL][0]);
+    RecompuiResource img = recompui_create_imageview(sContext, parent, DIGIT_TEX(DIGITS_NORMAL, 0));
     recompui_set_height(img, height, UNIT_DP);
-    recompui_set_width(img, height * sDigitAspect[0], UNIT_DP);
+    recompui_set_width(img, height * DIGIT_ASPECT(0), UNIT_DP);
     return img;
 }
 
@@ -190,38 +183,33 @@ static void set_digit(RecompuiResource slot, s32 value, DigitSet set, f32 height
         return;
     }
     recompui_set_display(slot, DISPLAY_BLOCK);
-    recompui_set_imageview_texture(slot, sTexDigits[set][value]);
-    recompui_set_width(slot, height * sDigitAspect[value], UNIT_DP);
+    recompui_set_imageview_texture(slot, DIGIT_TEX(set, value));
+    recompui_set_width(slot, height * DIGIT_ASPECT(value), UNIT_DP);
 }
 
-
-static void backend_init(void) {
-    load_textures();
-}
-
-static void backend_create_decor(void) {
+static void tx_create_decor(void) {
     // Arabesques de chaque côté et ornement central
-    f32 swirlH = SWIRL_W * TEX_SWIRL_L_H / TEX_SWIRL_L_W;
-    place_image(sRoot, sTexSwirlL, BAR_X - SWIRL_W * 0.62f, BAR_Y + BAR_H - swirlH + 4.0f, SWIRL_W, swirlH);
-    place_image(sRoot, sTexSwirlR, BAR_X + BAR_W - SWIRL_W * 0.38f, BAR_Y + BAR_H - swirlH + 4.0f, SWIRL_W, swirlH);
-    f32 ornH = ORN_W * TEX_ORN_H / TEX_ORN_W;
-    place_image(sRoot, sTexOrn, (ROOT_W - ORN_W) / 2.0f, BAR_Y - ornH + 3.0f, ORN_W, ornH);
+    f32 swirlH = SWIRL_W / TEX_ASPECT(TP_SWIRL_L);
+    place_image(sRoot, sTex[TP_SWIRL_L], BAR_X - SWIRL_W * 0.62f, BAR_Y + BAR_H - swirlH + 4.0f, SWIRL_W, swirlH);
+    place_image(sRoot, sTex[TP_SWIRL_R], BAR_X + BAR_W - SWIRL_W * 0.38f, BAR_Y + BAR_H - swirlH + 4.0f, SWIRL_W, swirlH);
+    f32 ornH = ORN_W / TEX_ASPECT(TP_ORN);
+    place_image(sRoot, sTex[TP_ORN], (ROOT_W - ORN_W) / 2.0f, BAR_Y - ornH + 3.0f, ORN_W, ornH);
 }
 
-static RecompuiResource backend_create_segment(s32 i) {
-    return place_image(sRoot, sTexSegDim[i], BAR_X + SEG_W * i, BAR_Y, SEG_W, BAR_H);
+static RecompuiResource tx_create_segment(s32 i) {
+    return place_image(sRoot, sTex[TP_DAY1_DIM + i], BAR_X + SEG_W * i, BAR_Y, SEG_W, BAR_H);
 }
 
-static void backend_set_segment(s32 i, bool current) {
-    recompui_set_imageview_texture(sSegments[i], current ? sTexSeg[i] : sTexSegDim[i]);
+static void tx_set_segment(s32 i, bool current) {
+    recompui_set_imageview_texture(sSegments[i], sTex[(current ? TP_DAY1 : TP_DAY1_DIM) + i]);
 }
 
-static RecompuiResource backend_create_cursor(void) {
-    return place_image(sRoot, sTexCursor, BAR_X - CURSOR_W / 2.0f, BAR_Y - CURSOR_H - 1.0f, CURSOR_W, CURSOR_H);
+static RecompuiResource tx_create_cursor(void) {
+    return place_image(sRoot, sTex[TP_CURSOR], BAR_X - CURSOR_W / 2.0f, BAR_Y - CURSOR_H - 1.0f, CURSOR_W, CURSOR_H);
 }
 
-static void backend_create_bubble_content(void) {
-    sBubbleIcon = recompui_create_imageview(sContext, sBubble, sTexSun);
+static void tx_create_bubble_content(void) {
+    sBubbleIcon = recompui_create_imageview(sContext, sBubble, sTex[TP_SUN]);
     recompui_set_width(sBubbleIcon, BUBBLE_ICON, UNIT_DP);
     recompui_set_height(sBubbleIcon, BUBBLE_ICON, UNIT_DP);
     recompui_set_margin_right(sBubbleIcon, 8.0f, UNIT_DP);
@@ -230,15 +218,12 @@ static void backend_create_bubble_content(void) {
     }
 }
 
-static RecompuiResource backend_create_arrow(void) {
-    f32 arrowW = ARROW_H * TEX_ARROW_W / TEX_ARROW_H;
-    return place_image(sRoot, sTexArrow, 0.0f, BUBBLE_Y + (BUBBLE_H - ARROW_H) / 2.0f, arrowW, ARROW_H);
+static RecompuiResource tx_create_arrow(void) {
+    f32 arrowW = ARROW_H * TEX_ASPECT(TP_ARROW);
+    return place_image(sRoot, sTex[TP_ARROW], 0.0f, BUBBLE_Y + (BUBBLE_H - ARROW_H) / 2.0f, arrowW, ARROW_H);
 }
 
-static void backend_create_final_content(void) {
-    RecompuiResource face = recompui_create_imageview(sContext, sFinalGroup, sTexMoonFace);
-    recompui_set_width(face, FINAL_FACE, UNIT_DP);
-    recompui_set_height(face, FINAL_FACE, UNIT_DP);
+static void tx_create_final_content(void) {
     RecompuiResource row = recompui_create_element(sContext, sFinalGroup);
     recompui_set_display(row, DISPLAY_FLEX);
     recompui_set_flex_direction(row, FLEX_DIRECTION_ROW);
@@ -248,22 +233,22 @@ static void backend_create_final_content(void) {
     }
 }
 
-static void backend_set_bubble(const s32* digits, DigitSet set, bool isDay) {
+static void tx_set_bubble(const s32* digits, DigitSet set, bool isDay) {
     for (s32 i = 0; i < BUBBLE_DIGITS; i++) {
         set_digit(sBubbleDigits[i], digits[i], set, BUBBLE_DIGIT_H);
     }
-    recompui_set_imageview_texture(sBubbleIcon, isDay ? sTexSun : sTexMoon);
+    recompui_set_imageview_texture(sBubbleIcon, sTex[isDay ? TP_SUN : TP_MOON]);
 }
 
-static void backend_set_final(const s32* digits) {
+static void tx_set_final(const s32* digits) {
     for (s32 i = 0; i < FINAL_HOURS_DIGITS; i++) {
         set_digit(sFinalDigits[i], digits[i], DIGITS_FINAL, FINAL_DIGIT_H);
     }
 }
 
-#else
-
-// Version sans textures : formes et texte de l'interface du jeu.
+// ---------------------------------------------------------------------------------------------
+// Version sans textures : formes et texte de l'interface du jeu
+// ---------------------------------------------------------------------------------------------
 static RecompuiResource sBubbleText;
 static RecompuiResource sFinalText;
 
@@ -276,7 +261,6 @@ static const RecompuiColor sDigitColors[DIGITS_SETS] = {
 static const RecompuiColor sColorCursor = { 220, 30, 30, 255 };
 static const RecompuiColor sColorSun = { 250, 120, 20, 255 };
 static const RecompuiColor sColorMoon = { 245, 225, 90, 255 };
-static const RecompuiColor sColorMoonFace = { 235, 110, 25, 255 };
 
 static RecompuiColor dim_color(const RecompuiColor* c) {
     RecompuiColor d = { (u8)(c->r * 45 / 100), (u8)(c->g * 45 / 100), (u8)(c->b * 45 / 100), c->a };
@@ -304,30 +288,24 @@ static RecompuiResource make_label(RecompuiResource parent, f32 size, const Reco
     return label;
 }
 
-static void backend_init(void) {
-}
-
-static void backend_create_decor(void) {
-}
-
-static RecompuiResource backend_create_segment(s32 i) {
+static RecompuiResource fb_create_segment(s32 i) {
     RecompuiColor dim = dim_color(&sDayColors[i]);
     return place_box(sRoot, BAR_X + SEG_W * i, BAR_Y, SEG_W, BAR_H, &dim);
 }
 
-static void backend_set_segment(s32 i, bool current) {
+static void fb_set_segment(s32 i, bool current) {
     RecompuiColor color = current ? sDayColors[i] : dim_color(&sDayColors[i]);
     recompui_set_background_color(sSegments[i], &color);
 }
 
-static RecompuiResource backend_create_cursor(void) {
+static RecompuiResource fb_create_cursor(void) {
     RecompuiResource cursor =
         place_box(sRoot, BAR_X - CURSOR_W / 2.0f, BAR_Y - CURSOR_H - 1.0f, CURSOR_W, CURSOR_H, &sColorCursor);
     recompui_set_border_radius(cursor, 3.0f, UNIT_DP);
     return cursor;
 }
 
-static void backend_create_bubble_content(void) {
+static void fb_create_bubble_content(void) {
     sBubbleIcon = recompui_create_element(sContext, sBubble);
     recompui_set_width(sBubbleIcon, BUBBLE_ICON * 0.7f, UNIT_DP);
     recompui_set_height(sBubbleIcon, BUBBLE_ICON * 0.7f, UNIT_DP);
@@ -337,7 +315,7 @@ static void backend_create_bubble_content(void) {
     sBubbleText = make_label(sBubble, BUBBLE_DIGIT_H, &sDigitColors[DIGITS_NORMAL]);
 }
 
-static RecompuiResource backend_create_arrow(void) {
+static RecompuiResource fb_create_arrow(void) {
     RecompuiResource arrow = make_label(sRoot, ARROW_H, &sColorWhite);
     recompui_set_position(arrow, POSITION_ABSOLUTE);
     recompui_set_top(arrow, BUBBLE_Y + (BUBBLE_H - ARROW_H) / 2.0f - 4.0f, UNIT_DP);
@@ -345,16 +323,11 @@ static RecompuiResource backend_create_arrow(void) {
     return arrow;
 }
 
-static void backend_create_final_content(void) {
-    RecompuiResource face = recompui_create_element(sContext, sFinalGroup);
-    recompui_set_width(face, FINAL_FACE * 0.8f, UNIT_DP);
-    recompui_set_height(face, FINAL_FACE * 0.8f, UNIT_DP);
-    recompui_set_border_radius(face, FINAL_FACE, UNIT_DP);
-    recompui_set_background_color(face, &sColorMoonFace);
+static void fb_create_final_content(void) {
     sFinalText = make_label(sFinalGroup, FINAL_DIGIT_H, &sDigitColors[DIGITS_FINAL]);
 }
 
-static void backend_set_bubble(const s32* digits, DigitSet set, bool isDay) {
+static void fb_set_bubble(const s32* digits, DigitSet set, bool isDay) {
     char text[BUBBLE_DIGITS + 1];
     digits_to_text(digits, BUBBLE_DIGITS, text);
     recompui_set_text(sBubbleText, text);
@@ -362,20 +335,143 @@ static void backend_set_bubble(const s32* digits, DigitSet set, bool isDay) {
     recompui_set_background_color(sBubbleIcon, isDay ? &sColorSun : &sColorMoon);
 }
 
-static void backend_set_final(const s32* digits) {
+static void fb_set_final(const s32* digits) {
     char text[FINAL_HOURS_DIGITS + 1];
     digits_to_text(digits, FINAL_HOURS_DIGITS, text);
     recompui_set_text(sFinalText, text);
 }
 
-#endif
+// ---------------------------------------------------------------------------------------------
+// Aiguillage entre les deux versions
+// ---------------------------------------------------------------------------------------------
+static void backend_init(const char* atlasPath) {
+    sUseTextures = load_textures(atlasPath);
+}
 
-static void create_ui(void) {
-    backend_init();
+static void backend_release(void) {
+    if (sUseTextures) {
+        for (u32 i = 0; i < TP_COUNT; i++) {
+            recompui_destroy_texture(sTex[i]);
+        }
+        sUseTextures = false;
+    }
+}
 
-    sContext = recompui_create_context();
-    recompui_set_context_captures_input(sContext, 0);
-    recompui_set_context_captures_mouse(sContext, 0);
+static void backend_create_decor(void) {
+    if (sUseTextures) {
+        tx_create_decor();
+    }
+}
+
+static RecompuiResource backend_create_segment(s32 i) {
+    return sUseTextures ? tx_create_segment(i) : fb_create_segment(i);
+}
+
+static void backend_set_segment(s32 i, bool current) {
+    if (sUseTextures) {
+        tx_set_segment(i, current);
+    } else {
+        fb_set_segment(i, current);
+    }
+}
+
+static RecompuiResource backend_create_cursor(void) {
+    return sUseTextures ? tx_create_cursor() : fb_create_cursor();
+}
+
+static void backend_create_bubble_content(void) {
+    if (sUseTextures) {
+        tx_create_bubble_content();
+    } else {
+        fb_create_bubble_content();
+    }
+}
+
+static RecompuiResource backend_create_arrow(void) {
+    return sUseTextures ? tx_create_arrow() : fb_create_arrow();
+}
+
+static void backend_create_final_content(void) {
+    if (sUseTextures) {
+        tx_create_final_content();
+    } else {
+        fb_create_final_content();
+    }
+}
+
+static void backend_set_bubble(const s32* digits, DigitSet set, bool isDay) {
+    if (sUseTextures) {
+        tx_set_bubble(digits, set, isDay);
+    } else {
+        fb_set_bubble(digits, set, isDay);
+    }
+}
+
+static void backend_set_final(const s32* digits) {
+    if (sUseTextures) {
+        tx_set_final(digits);
+    } else {
+        fb_set_final(digits);
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Réglage « Fichier de textures » : relu régulièrement, l'horloge est reconstruite s'il change
+// ---------------------------------------------------------------------------------------------
+#define CONFIG_CHECK_INTERVAL 30 // appels à Interface_DrawClock (environ 1,5 s)
+
+static char sAtlasPath[CLOCK3DS_PATH_MAX];   // chemin utilisé par l'horloge actuelle
+static char sConfigPath[CLOCK3DS_PATH_MAX];  // dernière valeur lue dans les réglages
+static u32 sConfigCheckTimer = 0;
+
+static void read_atlas_path(char* out) {
+    char* value = recomp_get_config_string("atlas_path");
+    u32 n = 0;
+    if (value != NULL) {
+        while ((n < CLOCK3DS_PATH_MAX - 1) && (value[n] != '\0')) {
+            out[n] = value[n];
+            n++;
+        }
+        recomp_free_config_string(value);
+    }
+    out[n] = '\0';
+}
+
+static bool same_path(const char* a, const char* b) {
+    for (u32 i = 0; i < CLOCK3DS_PATH_MAX; i++) {
+        if (a[i] != b[i]) {
+            return false;
+        }
+        if (a[i] == '\0') {
+            return true;
+        }
+    }
+    return true;
+}
+
+static void copy_path(char* dst, const char* src) {
+    u32 i = 0;
+    while ((i < CLOCK3DS_PATH_MAX - 1) && (src[i] != '\0')) {
+        dst[i] = src[i];
+        i++;
+    }
+    dst[i] = '\0';
+}
+
+static void reset_shown_state(void) {
+    sVisible = false;
+    sShownDay = -1;
+    sShownMode = -1;
+    sShownCursorX = -1.0f;
+    sShownOpacity = -1.0f;
+    sShownPulse = -1.0f;
+}
+
+// Construit l'horloge (textures comprises) dans le calque, déjà créé.
+static void build_ui(void) {
+    backend_init(sAtlasPath);
+    reset_shown_state();
+
     recompui_open_context(sContext);
 
     RecompuiResource screen = recompui_context_root(sContext);
@@ -429,11 +525,11 @@ static void create_ui(void) {
     sArrow = backend_create_arrow();
     recompui_set_display(sArrow, DISPLAY_NONE);
 
-    // 6 dernières heures : visage de la lune + compte à rebours
+    // 6 dernières heures : compte à rebours seul
     sFinalGroup = recompui_create_element(sContext, sRoot);
     recompui_set_position(sFinalGroup, POSITION_ABSOLUTE);
     recompui_set_left(sFinalGroup, 0.0f, UNIT_DP);
-    recompui_set_top(sFinalGroup, 0.0f, UNIT_DP);
+    recompui_set_top(sFinalGroup, FINAL_TOP, UNIT_DP);
     recompui_set_width(sFinalGroup, ROOT_W, UNIT_DP);
     recompui_set_flex_direction(sFinalGroup, FLEX_DIRECTION_COLUMN);
     recompui_set_align_items(sFinalGroup, ALIGN_ITEMS_CENTER);
@@ -442,7 +538,38 @@ static void create_ui(void) {
 
     recompui_set_display(sRoot, DISPLAY_NONE);
     recompui_close_context(sContext);
-    recompui_show_context(sContext);
+}
+
+static void destroy_ui(void) {
+    recompui_open_context(sContext);
+    recompui_destroy_element(recompui_context_root(sContext), sRoot);
+    recompui_close_context(sContext);
+    backend_release();
+}
+
+// Crée le calque au premier affichage, puis le reconstruit quand le chemin des textures change.
+static void ensure_ui(void) {
+    if (sContext == RECOMPUI_NULL_CONTEXT) {
+        read_atlas_path(sConfigPath);
+        copy_path(sAtlasPath, sConfigPath);
+        sContext = recompui_create_context();
+        recompui_set_context_captures_input(sContext, 0);
+        recompui_set_context_captures_mouse(sContext, 0);
+        build_ui();
+        recompui_show_context(sContext);
+        sConfigCheckTimer = 0;
+        return;
+    }
+    if (++sConfigCheckTimer < CONFIG_CHECK_INTERVAL) {
+        return;
+    }
+    sConfigCheckTimer = 0;
+    read_atlas_path(sConfigPath);
+    if (!same_path(sConfigPath, sAtlasPath)) {
+        copy_path(sAtlasPath, sConfigPath);
+        destroy_ui();
+        build_ui();
+    }
 }
 
 typedef enum { MODE_NORMAL, MODE_SLOW, MODE_FINAL } ClockMode;
@@ -701,9 +828,7 @@ RECOMP_PATCH void Interface_DrawClock(PlayState* play) {
         sThreeDayClockAlpha = (play->actorCtx.flags & ACTORCTX_FLAG_TELESCOPE_ON) ? 255 : interfaceCtx->bAlpha;
 
         if (!IS_PAUSED(&play->pauseCtx) && (sThreeDayClockAlpha > 0)) {
-            if (sContext == RECOMPUI_NULL_CONTEXT) {
-                create_ui();
-            }
+            ensure_ui();
             update_ui(sThreeDayClockAlpha / 255.0f, bubble_pulse(play), !sInInterfaceDraw);
             sDrawnThisFrame = true;
         }

@@ -1,13 +1,17 @@
 [manifest]
 id = "nelem_mm_clock_3ds"
-version = "1.1.5"
+version = "1.2.0"
 display_name = "3DS Clock"
 description = """
 Remplace l'horloge N64 par l'horloge de Majora's Mask 3D : une barre des trois jours en bas de l'écran,
 un curseur qui avance avec le temps et une bulle qui affiche l'heure avec le soleil ou la lune.
 
 Temps ralenti (Chant du Temps inversé) : contour doré, chiffres cyan et flèche, comme sur 3DS.
-Six dernières heures : visage de la lune et compte à rebours HH:MM:SS.
+Six dernières heures : compte à rebours HH:MM:SS.
+
+Textures 3DS (facultatives) : dans les réglages de ce mod, indique le chemin du fichier
+tex1_512x256_45D746278BB3DA8A_13_mip0.png du pack MM3D 4K (ou du dossier du pack).
+Laisse le champ vide pour l'horloge sans textures.
 
 Pour retrouver l'horloge d'origine, désactive simplement ce mod."""
 short_description = "L'horloge de Majora's Mask 3D en bas de l'écran."
@@ -19,7 +23,20 @@ dependencies = [
 optional_dependencies = [
 ]
 native_libraries = [
+    { name = "clock3ds_textures", funcs = ["clock3ds_tex_load", "clock3ds_tex_dims", "clock3ds_tex_copy", "clock3ds_tex_free"] },
 ]
+
+[[manifest.config_options]]
+id = "atlas_path"
+name = "Fichier de textures (MM3D 4K)"
+description = '''Chemin du fichier tex1_512x256_45D746278BB3DA8A_13_mip0.png du pack MM3D 4K de Henriko Magnifico,
+ou du dossier du pack (le fichier y est cherché automatiquement). Les guillemets sont acceptés.
+
+Exemple : C:\Users\Moi\Desktop\MM3D 4K
+
+Laisse vide pour l'horloge sans textures. Pris en compte en une ou deux secondes.'''
+type = "String"
+default = ""
 
 [inputs]
 elf_path = "build/mod.elf"
