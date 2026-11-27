@@ -4,7 +4,7 @@
 // Pièces de l'horloge découpées par la bibliothèque native (native/clock3ds_textures.cpp) dans
 // l'atlas UI du pack MM3D 4K. Partagé par le mod (C, MIPS) et la DLL (C++) : l'ordre compte.
 
-// Nom du fichier du pack à copier dans le dossier mods, et sa taille attendue.
+// Fichier de l'atlas UI dans le pack MM3D 4K (cherché dans le dossier indiqué dans les réglages), et sa taille attendue.
 #define CLOCK3DS_ATLAS_FILE "tex1_512x256_45D746278BB3DA8A_13_mip0.png"
 #define CLOCK3DS_ATLAS_W 4096
 #define CLOCK3DS_ATLAS_H 2048
