@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -351,7 +352,17 @@ static std::string clean_path(std::string p) {
     while (start < p.size() && blank(p[start])) {
         start++;
     }
-    return p.substr(start);
+    p = p.substr(start);
+#ifndef _WIN32
+    // "~/..." : dossier personnel (Linux, macOS).
+    if (p.size() >= 2 && p[0] == '~' && p[1] == '/') {
+        const char* home = std::getenv("HOME");
+        if (home != nullptr && home[0] != '\0') {
+            p = std::string(home) + p.substr(1);
+        }
+    }
+#endif
+    return p;
 }
 
 // Le chemin peut désigner le fichier lui-même ou un dossier du pack : on y cherche le fichier aux
@@ -393,24 +404,24 @@ static bool resolve_atlas(const std::string& input, std::string& out) {
 static bool load_atlas(const std::string& input) {
     std::string path;
     if (!resolve_atlas(input, path)) {
-        std::printf("[3DS Clock] %s introuvable dans ce dossier : horloge sans textures.\n", CLOCK3DS_ATLAS_FILE);
+        std::printf("[3DS Clock] %s not found there: clock without textures.\n", CLOCK3DS_ATLAS_FILE);
         return false;
     }
     std::vector<uint8_t> file;
     if (!read_file(path, file)) {
-        std::printf("[3DS Clock] Fichier de textures illisible : horloge sans textures.\n");
+        std::printf("[3DS Clock] Cannot read the texture file: clock without textures.\n");
         return false;
     }
     int w = 0, h = 0, comp = 0;
     if (!stbi_info_from_memory(file.data(), (int)file.size(), &w, &h, &comp) || w != CLOCK3DS_ATLAS_W ||
         h != CLOCK3DS_ATLAS_H) {
-        std::printf("[3DS Clock] Ce fichier n'est pas l'atlas attendu (%dx%d au lieu de %dx%d) : horloge sans textures.\n",
+        std::printf("[3DS Clock] Not the expected atlas (%dx%d instead of %dx%d): clock without textures.\n",
                     w, h, CLOCK3DS_ATLAS_W, CLOCK3DS_ATLAS_H);
         return false;
     }
     uint8_t* pixels = stbi_load_from_memory(file.data(), (int)file.size(), &w, &h, &comp, 4);
     if (!pixels) {
-        std::printf("[3DS Clock] Lecture du fichier de textures impossible : horloge sans textures.\n");
+        std::printf("[3DS Clock] Cannot decode the texture file: clock without textures.\n");
         return false;
     }
     Image atlas;
@@ -425,7 +436,7 @@ static bool load_atlas(const std::string& input) {
             return false;
         }
     }
-    std::printf("[3DS Clock] Textures chargées.\n");
+    std::printf("[3DS Clock] Textures loaded.\n");
     return true;
 }
 
@@ -506,12 +517,12 @@ CLOCK3DS_EXPORT void clock3ds_tex_free(uint8_t* rdram, void* ctx) {
 // Outil de test : écrit chaque pièce en .rgba pour la comparer à tools/gen_assets.py.
 int main(int argc, char** argv) {
     if (argc < 3) {
-        std::printf("usage: %s atlas.png dossier_sortie\n", argv[0]);
+        std::printf("usage: %s <atlas or pack folder> <output folder>\n", argv[0]);
         return 1;
     }
     std::string path;
     if (!resolve_atlas(clean_path(argv[1]), path)) {
-        std::printf("introuvable\n");
+        std::printf("not found\n");
         return 2;
     }
     std::printf("%s\n", path.c_str());

@@ -1,20 +1,22 @@
 [manifest]
 id = "nelem_mm_clock_3ds"
-version = "1.2.0"
+version = "1.2.1"
 display_name = "3DS Clock"
 description = """
-Remplace l'horloge N64 par l'horloge de Majora's Mask 3D : une barre des trois jours en bas de l'écran,
-un curseur qui avance avec le temps et une bulle qui affiche l'heure avec le soleil ou la lune.
+Replaces the N64 clock with the clock from Majora's Mask 3D: a three-day bar at the bottom of the screen,
+a cursor that moves with time and a bubble showing the time with the sun or the moon.
 
-Temps ralenti (Chant du Temps inversé) : contour doré, chiffres cyan et flèche, comme sur 3DS.
-Six dernières heures : compte à rebours HH:MM:SS.
+Slowed time (Inverted Song of Time): gold outline, cyan digits and arrow, as on 3DS.
+Final six hours: HH:MM:SS countdown.
 
-Textures 3DS (facultatives) : dans les réglages de ce mod, indique le chemin du fichier
-tex1_512x256_45D746278BB3DA8A_13_mip0.png du pack MM3D 4K (ou du dossier du pack).
-Laisse le champ vide pour l'horloge sans textures.
+3DS textures (optional): in this mod's settings, enter the folder of your MM3D 4K texture pack
+(or the path of its tex1_512x256_45D746278BB3DA8A_13_mip0.png file). Leave it empty for the clock without textures.
 
-Pour retrouver l'horloge d'origine, désactive simplement ce mod."""
-short_description = "L'horloge de Majora's Mask 3D en bas de l'écran."
+To get the original clock back, just disable this mod.
+
+(FR) L'horloge de Majora's Mask 3D. Textures 3DS : indique le dossier du pack MM3D 4K dans les réglages
+du mod ; champ vide = horloge sans textures."""
+short_description = "The Majora's Mask 3D clock at the bottom of the screen."
 authors = [ "Nelem" ]
 game_id = "mm"
 minimum_recomp_version = "1.2.2"
@@ -28,13 +30,15 @@ native_libraries = [
 
 [[manifest.config_options]]
 id = "atlas_path"
-name = "Fichier de textures (MM3D 4K)"
-description = '''Chemin du fichier tex1_512x256_45D746278BB3DA8A_13_mip0.png du pack MM3D 4K de Henriko Magnifico,
-ou du dossier du pack (le fichier y est cherché automatiquement). Les guillemets sont acceptés.
+name = "Texture pack folder (MM3D 4K)"
+description = '''Folder of Henriko Magnifico's MM3D 4K texture pack, or the path of its
+tex1_512x256_45D746278BB3DA8A_13_mip0.png file. Quotes are fine.
 
-Exemple : C:\Users\Moi\Desktop\MM3D 4K
+Example: C:\Users\Me\Desktop\MM3D 4K   (Linux / macOS: ~/MM3D 4K)
 
-Laisse vide pour l'horloge sans textures. Pris en compte en une ou deux secondes.'''
+Leave empty for the clock without textures. Applied within a second or two.
+
+(FR) Dossier du pack de textures MM3D 4K, ou chemin du fichier. Vide = horloge sans textures.'''
 type = "String"
 default = ""
 

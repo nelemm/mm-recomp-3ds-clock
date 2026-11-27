@@ -1,0 +1,70 @@
+# Builds the native library (clock3ds_textures) for every platform and checks that they all cut the
+# same pieces from a synthetic test atlas (no game artwork is used or published).
+name: Native library
+
+on:
+  push:
+    paths: ["native/**", "src/tex_pieces.h", ".github/workflows/native.yml"]
+  pull_request:
+    paths: ["native/**", "src/tex_pieces.h", ".github/workflows/native.yml"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: windows-x64, os: windows-2022, lib: clock3ds_textures.dll }
+          - { name: linux-x64, os: ubuntu-22.04, lib: clock3ds_textures.so }
+          - { name: linux-arm64, os: ubuntu-22.04-arm, lib: clock3ds_textures.so }
+          - { name: macos-universal, os: macos-14, lib: clock3ds_textures.dylib }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: native\build.bat test
+
+      - name: Build (Linux, macOS)
+        if: runner.os != 'Windows'
+        run: sh native/build.sh test
+
+      - name: Check exports
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = macOS ]; then nm -gU build/${{ matrix.lib }}; lipo -info build/${{ matrix.lib }}; else nm -D --defined-only build/${{ matrix.lib }}; ldd build/${{ matrix.lib }}; fi
+          for s in recomp_api_version clock3ds_tex_load clock3ds_tex_dims clock3ds_tex_copy clock3ds_tex_free; do
+            if [ "$RUNNER_OS" = macOS ]; then nm -gU build/${{ matrix.lib }} | grep -q " _$s$"; else nm -D --defined-only build/${{ matrix.lib }} | grep -q " $s$"; fi || { echo "missing export: $s"; exit 1; }
+          done
+
+      - name: Cut pieces from a test atlas
+        shell: bash
+        run: |
+          python native/make_test_atlas.py test_atlas.png
+          mkdir pieces
+          ./build/clock3ds_textures_test test_atlas.png pieces
+          ls pieces | wc -l
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: build/${{ matrix.lib }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pieces-${{ matrix.name }}
+          path: pieces
+
+  compare:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pieces-*
+      - run: python native/compare_pieces.py pieces-windows-x64 pieces-linux-x64 pieces-linux-arm64 pieces-macos-universal
