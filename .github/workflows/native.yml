@@ -18,10 +18,10 @@ jobs:
           - { name: windows-x64, os: windows-2022, lib: clock3ds_textures.dll }
           - { name: linux-x64, os: ubuntu-22.04, lib: clock3ds_textures.so }
           - { name: linux-arm64, os: ubuntu-22.04-arm, lib: clock3ds_textures.so }
-          - { name: macos-universal, os: macos-14, lib: clock3ds_textures.dylib }
+          - { name: macos-universal, os: macos-latest, lib: clock3ds_textures.dylib }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
@@ -49,12 +49,12 @@ jobs:
           ./build/clock3ds_textures_test test_atlas.png pieces
           ls pieces | wc -l
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.name }}
           path: build/${{ matrix.lib }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: pieces-${{ matrix.name }}
           path: pieces
@@ -63,8 +63,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
         with:
           pattern: pieces-*
       - run: python native/compare_pieces.py pieces-windows-x64 pieces-linux-x64 pieces-linux-arm64 pieces-macos-universal
